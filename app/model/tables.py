@@ -1,13 +1,13 @@
+from sqlalchemy import PrimaryKeyConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
-    Text,
     Column,
     Integer,
     String,
     ForeignKey,
-    DateTime
+    DateTime,
 )
 
 
@@ -25,16 +25,16 @@ class UserAccounts(Base):
     mails = relationship("UserMails", back_populates="accounts")
 
 
-class UserAccountsLog(Base):
-    __tablename__ = "user_accounts_log"
+class UserLikes(Base):
+    __tablename__ = "user_likes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('user_accounts.id'), nullable=False)
-    action = Column(String, nullable=False)
-    changed_column = Column(String, nullable=True)
-    old_value = Column(Text, nullable=True)
-    new_value = Column(Text, nullable=True)
-    action_timestamp = Column(DateTime, default=func.now())
+    user_id = Column(Integer, ForeignKey('user_mails.id'))
+    other_user_id = Column(Integer, ForeignKey('user_mails.id'))
+    liked_at = Column(DateTime, default=func.now())
+
+    user_mail = relationship("UserMails", foreign_keys=[user_id], back_populates="likes_user_id")
+    other_user_mail = relationship("UserMails", foreign_keys=[other_user_id], back_populates="likes_other_user_id")
 
 
 class UserMails(Base):
@@ -48,21 +48,8 @@ class UserMails(Base):
     names = relationship("UserNames", back_populates="mails", uselist=False)
     avatars = relationship("UserAvatars", back_populates="mails", uselist=False)
     accounts = relationship("UserAccounts", back_populates="mails")
-    
-
-
-class UserMailsLog(Base):
-    __tablename__ = "user_mails_log"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('user_mails.user_id'), nullable=False)
-
-    action = Column(String, nullable=False)
-    changed_column = Column(String, nullable=True) 
-    old_value = Column(Text, nullable=True)
-    new_value = Column(Text, nullable=True)
-    action_timestamp = Column(DateTime, default=func.now())
-
+    likes_user_id = relationship("UserLikes", foreign_keys=[UserLikes.user_id], back_populates="user_mail")
+    likes_other_user_id = relationship("UserLikes", foreign_keys=[UserLikes.other_user_id], back_populates="other_user_mail")    
 
 class UserNames(Base):
     __tablename__ = 'user_names'
@@ -75,17 +62,6 @@ class UserNames(Base):
     mails = relationship("UserMails", back_populates="names")
 
 
-class UserNamesLog(Base):
-    __tablename__ = "user_names_log"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('user_names.user_id'), nullable=False)
-    action = Column(String, nullable=False)
-    changed_column = Column(String, nullable=True)
-    old_value = Column(String, nullable=True)
-    new_value = Column(String, nullable=True)
-    action_timestamp = Column(DateTime, default=func.now())
-
 
 class UserAvatars(Base):
     __tablename__ = 'user_avatars'
@@ -97,13 +73,3 @@ class UserAvatars(Base):
     mails = relationship("UserMails", back_populates="avatars")
 
 
-class UserAvatarsLog(Base):
-    __tablename__ = "user_avatars_log"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('user_avatars.user_id'), nullable=False)
-    action = Column(String, nullable=False) 
-    changed_column = Column(String, nullable=True)
-    old_value = Column(String, nullable=True)
-    new_value = Column(String, nullable=True)
-    action_timestamp = Column(DateTime, default=func.now())

@@ -7,6 +7,8 @@ clear:
 clean:
 	clear
 
+# code_style:
+
 # remove_db:
 # 	rm -rf app/database/*.db
 
