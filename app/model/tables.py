@@ -43,13 +43,13 @@ class UserMails(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('user_accounts.id'))
     email = Column(String, unique=True)
-    gender = Column(String)
 
     names = relationship("UserNames", back_populates="mails", uselist=False)
     avatars = relationship("UserAvatars", back_populates="mails", uselist=False)
     accounts = relationship("UserAccounts", back_populates="mails")
     likes_user_id = relationship("UserLikes", foreign_keys=[UserLikes.user_id], back_populates="user_mail")
     likes_other_user_id = relationship("UserLikes", foreign_keys=[UserLikes.other_user_id], back_populates="other_user_mail")    
+
 
 class UserNames(Base):
     __tablename__ = 'user_names'
@@ -58,6 +58,7 @@ class UserNames(Base):
     user_id = Column(Integer, ForeignKey('user_mails.user_id'))
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
+    gender = Column(String)
 
     mails = relationship("UserMails", back_populates="names")
 

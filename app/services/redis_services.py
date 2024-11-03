@@ -1,9 +1,13 @@
-import os
+import asyncio
 import subprocess
 from redis.asyncio import Redis
 from settings import settings
 from typing import Optional
 from datetime import datetime, timedelta
+
+
+class RedisNotRunningError(Exception):
+    pass
 
 
 class RedisService:
@@ -15,8 +19,8 @@ class RedisService:
         self._process = subprocess.Popen(
             ['redis-server',
                 '--bind', settings.REDIS_HOST, 
-                '--port', str(settings.REDIS_PORT),
-                '--dbfilename', settings.REDIS_PATH],
+                '--port', str(settings.REDIS_PORT),],
+                # '--dbfilename', settings.REDIS_PATH],
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE)
 
@@ -27,6 +31,7 @@ class RedisService:
                 port=settings.REDIS_PORT,
                 decode_responses=True
             )
+        await self._wait_for_redis()
         return self._redis
 
     async def stop(self) -> None:
@@ -36,7 +41,8 @@ class RedisService:
 
         if self._process:
             self._process.terminate()
-            self._process = None
+        await asyncio.get_event_loop().run_in_executor(None, self._process.wait)            
+        self._process = None
 
     async def increment_rating_count(self, client_id: str) -> int:
         key = f"ratings:{client_id}:{datetime.today().date()}"
@@ -57,3 +63,23 @@ class RedisService:
             cursor, keys = await self._redis.scan(cursor=cursor, match=pattern)
             if keys:
                 await self._redis.delete(*keys)
+    
+    async def _is_running(self) -> None:
+        if self._redis is None:
+            raise RedisNotRunningError("Redis client is not initialized.")
+        
+        try:
+           await self._redis.ping()
+        except Exception as e:
+            raise RedisNotRunningError("Redis is not running.")
+        
+    async def _wait_for_redis(self) -> None:
+        start_time = datetime.now()
+        while (datetime.now() - start_time).total_seconds() < 10:
+            try:
+                await self._is_running() 
+                return
+            except RedisNotRunningError:
+                await asyncio.sleep(1)  # Ждем 1 секунду перед следующей проверкой
+
+        raise RedisNotRunningError("Redis did not start in time.")  

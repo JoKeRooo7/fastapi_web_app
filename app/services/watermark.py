@@ -7,6 +7,11 @@ from fastapi import UploadFile
 from settings import settings
 
 
+class AvatarError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
 class AvatarHandler:
     async def save_avatar_file(self, user_avatar_file: UploadFile):
         await self._validate_avatar(user_avatar_file)
@@ -35,18 +40,23 @@ class AvatarHandler:
 
     async def _validate_avatar(self, avatar):
         if not (avatar.filename.endswith('.jpeg') or avatar.filename.endswith('.jpg') or avatar.filename.endswith('.png')):
-            raise TypeError("Неверный формат")
+            raise AvatarError("Неверный формат")
+
+            # print(f"\witch context: {avatar}\n")
+        contents = await avatar.read()
+        if not contents:
+            raise AvatarError("Файл пуст или открыт в другом потоке")
         try:
-            contents = await avatar.read()
+            avatar.file.seek(0)
             image = Image.open(io.BytesIO(contents))
             image.verify()
         except Exception as e:
-            raise ValueError("Некорректное изображение")
+            raise AvatarError("Некорректное изображение")
 
     
     async def delete_avatar(self, avatar_path: str) -> None:
         if os.path.exists(avatar_path):
             os.remove(avatar_path)
-        else:
-            raise FileNotFoundError(f"Файл не найден: {avatar_path}")
+        # else:
+        #     raise FileNotFoundError(f"Файл не найден: {avatar_path}")
     
