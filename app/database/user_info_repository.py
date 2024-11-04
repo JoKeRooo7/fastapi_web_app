@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.users import (
+    UserLocationSchema,
     UserLoginSchema,
     UserDataSchema,
     UserListSchema, 
@@ -10,8 +11,8 @@ from schemas.users import (
 from model.tables import (
     UserAccounts, 
     UserMails, 
-    UserNames, 
-    UserAvatars,
+    UserNames,
+    UserLocations
 )
 
 class UserInfoRepository:
@@ -75,3 +76,27 @@ class UserInfoRepository:
                 last_name=user.last_name,
                 registration_date=user.created_at
             ) for user in users]
+
+    async def get_user_coordinates_by_id(self, id: int, session: AsyncSession):
+        query = select(
+                UserLocations.user_id, 
+                UserLocations.longitude, 
+                UserLocations.latitude
+            ).filter(
+                UserLocations.user_id==id
+            ).order_by(
+                UserLocations.created_at.desc()
+            ).limit(1)
+    
+        result = await session.execute(query)
+        locations = result.fetchall()
+
+        if not locations: 
+           return None
+    
+        location = locations[0]
+        return UserLocationSchema(
+            id=location.user_id,
+            latitude=location.latitude,
+            longitude=location.longitude
+        )

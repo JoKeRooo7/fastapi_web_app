@@ -10,11 +10,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field("sqlite+aiosqlite:///database/my_database.db", env="DATABASE_URL")
     UVICORN_PORT: int = Field(8000, env="UVICORN_PORT")
     UVICORN_HOST: str = Field("0.0.0.0", env="UVICORN_HOST")
-    REDIS_PATH: str = Field("database/dump.rdb", env="REDIS_PATH")
+    REDIS_PATH: str = Field("database", env="REDIS_PATH")
     REDIS_HOST: str = Field("localhost", env="REDIS_HOST")
     REDIS_PORT: int = Field(6379, env="REDIS_PORT")
     DAILY_RATING_LIMIT: int = Field(5, env="DAILY_RATING_LIMIT")
     TIME_TO_REMOVE_LIMIT: int = Field(3, env="TIME_TO_REMOVE_LIMIT")
+    TIME_TO_REMOVE_LIST_CASH: int = Field(3600, env="TIME_TO_REMOVE_LIST_CASH")
 
     class Config:
         env_prefix = "FAST_API_WEB_APP_"

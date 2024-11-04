@@ -11,11 +11,13 @@ from contextlib import asynccontextmanager
 async def startup_event():
     redis_service.start()
     await redis_service.get_client()
+    await redis_service.clear_all_rating_counts()
     await database.create_db()
+    
 
 # @app.on_event("shutdown")
 async def shutdown_event():
-    await redis_service.clear_all_rating_counts()
+    # await redis_service.clear_all_rating_counts()
     await redis_service.stop()
 
 @asynccontextmanager
@@ -33,10 +35,10 @@ app = FastAPI(
 
 app.include_router(router)
 
-
 @app.get("/")
 async def root():
     return {"message": "Welcome! =)"}
+
 
 
 if __name__ == "__main__":

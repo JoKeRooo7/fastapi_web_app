@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Literal
 from pydantic import EmailStr
 from security.auth import TokenAuthenticator, auth_scheme
@@ -9,6 +10,7 @@ from database.user_info_repository import UserInfoRepository
 from database.user_registration_repository import UserRegistrationRepository
 from services.watermark import AvatarHandler, AvatarError
 from services.redis_services import RedisService
+from services.distance import DistanceCalculator
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import (
     APIRouter, 
@@ -25,11 +27,12 @@ from schemas.response import (
     UserListDataResponseSchema,
     UserDataResponseSchema,
 )
-
 from schemas.users import (
+    UserLocationSchema,
     UserCreateSchema,
     UserLoginSchema,
     UserListSchema,
+    UserDataSchema,
 )
 
 
@@ -41,7 +44,7 @@ registration_repository = UserRegistrationRepository()
 user_likes_repository = UserLikeRepository()
 redis_service = RedisService()
 authenticator = TokenAuthenticator()
-
+distance_services = DistanceCalculator()
 
 
 @router.post("/api/clients/create")
@@ -76,11 +79,8 @@ async def register_user(
 
 @router.post("/api/login")
 async def login(
-    email: EmailStr = Form(...),
-    password: str = Form(...),
-    session: AsyncSession=Depends(database.get_db)):
-    # print(f"\n{email}, {password}\n")
-    user = UserLoginSchema(email=email, password=password)
+    user: UserLoginSchema,
+    session: AsyncSession=Depends(database.get_db)) -> TokenSchema:
     id, username, password, email = await user_info_repository.get_user_data_by_email(user, session)
     if not await verify_password(user.password, password):
         raise HTTPException(
@@ -99,13 +99,14 @@ async def login(
 async def match_client(
     id: int,
     token: str = Depends(auth_scheme),
-    session: AsyncSession=Depends(database.get_db)):
+    session: AsyncSession=Depends(database.get_db)) -> UserDataResponseSchema:
 
     current_id, current_username, current_email = await TokenAuthenticator().get_current_user(token)
     rating_count = await redis_service.get_rating_count(current_id)
     message="Лайк!"
     if rating_count > settings.DAILY_RATING_LIMIT:
-        message="Лимит оценок на сегодня достигнут"
+        raise HTTPException(status_code=403, 
+            detail=f"Лимит оценок на сегодня достигнут")
     else:
         match = await user_likes_repository.add_like(current_id, id, session)
         if match:
@@ -118,50 +119,79 @@ async def match_client(
         message=message
     )
 
-@router.post("/api/clients/create")
-async def match_client(
-    token: str = Depends(auth_scheme),
-    session: AsyncSession=Depends(database.get_db)):
 
-    current_id, current_username, current_email = await TokenAuthenticator().get_current_user(token)
-    rating_count = await redis_service.get_rating_count(current_id)
-    message="Лайк!"
-    if rating_count > settings.DAILY_RATING_LIMIT:
-        message="Лимит оценок на сегодня достигнут"
-    else:
-        match = await user_likes_repository.add_like(current_id, id, session)
-        if match:
-            _, first_name, email = await registration_repository.get_user_names_by_id(id, session)  
-            message=f"Выпонравились <{first_name}>! Почта участника: <{email}>"
-        await redis_service.increment_rating_count(current_id)
-    return UserDataResponseSchema(
-        username=current_username,
-        email=current_email,
-        message=message
-    )
+
+def filter_users_by_distance(user_coordinates, user_list, distance):
+    # Здесь вы должны реализовать логику фильтрации по расстоянию
+    filtered_users = []
+    for user in user_list:
+        user_distance = calculate_distance(user_coordinates.latitude, user_coordinates.longitude, 
+                                           user.latitude, user.longitude)
+        if user_distance <= distance:
+            filtered_users.append(user)
+    return filtered_users
 
 
 @router.get("/api/list")
 async def get_user_list(
-    gender: Optional[str] = Query(None),
-    first_name: Optional[str] = Query(None),
-    last_name: Optional[str] = Query(None),
-    order: Optional[Literal['asc', 'desc']] = Query(None),
+    data: UserListSchema,
     token: str = Depends(auth_scheme),
-    session: AsyncSession=Depends(database.get_db)):
-    
-    data = UserListSchema(
-        gender=gender,
-        first_name=first_name,
-        last_name=last_name,
-        order=order
-    )
-    
-    await TokenAuthenticator().get_current_user(token)
-    try:
+    session: AsyncSession=Depends(database.get_db)) -> UserListDataResponseSchema:
+    id, _, _ = await TokenAuthenticator().get_current_user(token)
+    # try:
+    if True:
         result = await user_info_repository.get_user_list(data, session)
-    except HTTPException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-    except:
-        raise HTTPException(status_code=500, detail=f"Ошибка получения списка")
+        if data.distance:
+            cashe_key = f"user_id:{id}/distance:{data.distance}"
+            cached_result = await redis_service.get_cached_data(cashe_key)
+
+            if cached_result:
+                return UserListDataResponseSchema(
+                    user_list=[UserDataSchema(**cash) for cash in cached_result])
+            
+            main_coordinates = await user_info_repository.get_user_coordinates_by_id(
+                id, session
+            )
+            filtered_data = []
+            for user in result:
+                user_coordinates = await user_info_repository.get_user_coordinates_by_id(
+                    user.id, session
+                )
+                if not user_coordinates:
+                    continue
+                
+                if await distance_services.is_within_distance(
+                    latitude_first=main_coordinates.latitude, 
+                    longitude_first=main_coordinates.longitude, 
+                    latitude_second=user_coordinates.latitude, 
+                    longitude_second=user_coordinates.longitude, 
+                    max_distance_km=data.distance):
+                    filtered_data.append(
+                        {
+                            "id": user.id,
+                            "first_name": user.first_name,
+                            "last_name": user.last_name
+                        }
+                    )
+        await redis_service.set_cached_data(cashe_key, filtered_data)
+        print(result)
+    # except HTTPException as e:
+    #     raise HTTPException(status_code=e.status_code, detail=e.detail)
+    # except:
+    #     raise HTTPException(status_code=500, detail=f"Ошибка получения списка")
     return UserListDataResponseSchema(user_list=result)
+
+
+@router.post("/api/coordinates/create")
+async def add_location(
+    coordinates : UserLocationSchema,
+    token: str = Depends(auth_scheme),
+    session: AsyncSession=Depends(database.get_db)) -> UserDataResponseSchema:
+    id, username, email = await TokenAuthenticator().get_current_user(token)
+    coordinates.id=id
+    await registration_repository.add_coordinates(coordinates=coordinates, session=session)
+    return UserDataResponseSchema(
+        username=username,
+        email=email,
+        message="Координаты успешно добавлены"
+    )

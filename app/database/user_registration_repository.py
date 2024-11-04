@@ -3,16 +3,21 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from security.hashing import hash_password
+from sqlalchemy.sql import func
+
 
 from model.tables import (
     UserAccounts, 
     UserMails, 
     UserNames, 
     UserAvatars, 
+    UserLocations,
 )
-from schemas.users import ( 
-    UserCreateSchema
+from schemas.users import (
+    UserLocationSchema,
+    UserCreateSchema,
 )
+
 
 class UserRegistrationRepository:
     async def _check_existing_user(self, email: str, session: AsyncSession):
@@ -23,7 +28,7 @@ class UserRegistrationRepository:
 
     async def _create_user_records(self, user: UserCreateSchema):
         hashed_password = await hash_password(user.password)
-        user_account = UserAccounts(username=user.username, hashed_password=hashed_password, created_at=datetime.now())
+        user_account = UserAccounts(username=user.username, hashed_password=hashed_password, created_at=func.now())
         user_mail = UserMails(email=user.email)
         user_name = UserNames(first_name=user.first_name, last_name=user.last_name, gender=user.gender)
         return user_account, user_mail, user_name
@@ -52,3 +57,17 @@ class UserRegistrationRepository:
             raise HTTPException(status_code=500, detail="Ошибка при сохранении данных")
 
         return user.username, user.email
+    
+    async def add_coordinates(self, coordinates:UserLocationSchema,  session: AsyncSession):
+        try:
+            user_locations = UserLocations(
+                user_id=coordinates.id, 
+                longitude=coordinates.longitude,
+                latitude=coordinates.latitude,
+                created_at=func.now()
+            )
+            session.add(user_locations)
+            await session.commit()
+        except Exception as e:
+            await session.rollback()  # Откат при ошибке
+            raise HTTPException(status_code=500, detail="Ошибка при сохранении данных")

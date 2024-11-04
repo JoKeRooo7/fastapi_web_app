@@ -10,5 +10,6 @@ aiosqlite==0.20.0
 requests==2.32.3
 python-multipart==0.0.17
 pytest==8.3.3
-redis
-python-jose
+pillow==11.0.0
+redis==5.2.0
+python-jose==3.3.0

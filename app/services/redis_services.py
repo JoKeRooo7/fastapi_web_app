@@ -1,3 +1,4 @@
+import json
 import asyncio
 import subprocess
 from redis.asyncio import Redis
@@ -11,18 +12,23 @@ class RedisNotRunningError(Exception):
 
 
 class RedisService:
-    def __init__(self):
+    def __init__(self, stop_time=10):
         self._process: Optional[subprocess.Popen] = None
         self._redis = None
+        self.stop_time = stop_time
 
     def start(self) -> None:
         self._process = subprocess.Popen(
             ['redis-server',
                 '--bind', settings.REDIS_HOST, 
-                '--port', str(settings.REDIS_PORT),],
-                # '--dbfilename', settings.REDIS_PATH],
+                '--port', str(settings.REDIS_PORT),
+                '--dir', settings.REDIS_PATH, 
+                '--dbfilename', 'redis_dumb.rdb'],
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE)
+        # stdout, stderr = self._process.communicate()
+        # print("Redis stdout:", stdout.decode())
+        # print("Redis stderr:", stderr.decode())      
 
     async def get_client(self) -> None:
         if self._redis is None:
@@ -58,12 +64,22 @@ class RedisService:
     async def clear_all_rating_counts(self) -> None:
         cursor = '0'
         pattern = 'ratings:*'
-        
         while cursor != 0:
             cursor, keys = await self._redis.scan(cursor=cursor, match=pattern)
             if keys:
                 await self._redis.delete(*keys)
-    
+
+    async def get_cached_data(self, key: str):
+        cached_data = await self._redis.get(key)
+        return json.loads(cached_data) if cached_data else None
+
+
+    async def set_cached_data(self, key: str, data):
+        await self._redis.set(key, 
+            json.dumps(data), 
+            ex=settings.TIME_TO_REMOVE_LIST_CASH)
+
+
     async def _is_running(self) -> None:
         if self._redis is None:
             raise RedisNotRunningError("Redis client is not initialized.")
@@ -75,11 +91,12 @@ class RedisService:
         
     async def _wait_for_redis(self) -> None:
         start_time = datetime.now()
-        while (datetime.now() - start_time).total_seconds() < 10:
+        while (datetime.now() - start_time).total_seconds() < self.stop_time:
             try:
                 await self._is_running() 
                 return
             except RedisNotRunningError:
                 await asyncio.sleep(1)  # Ждем 1 секунду перед следующей проверкой
 
-        raise RedisNotRunningError("Redis did not start in time.")  
+        raise RedisNotRunningError(f"Redis did not start in time ({self.stop_time}sec).")
+    

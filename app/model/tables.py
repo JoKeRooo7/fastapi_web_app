@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
+    Float,
     Column,
     Integer,
     String,
@@ -47,6 +48,7 @@ class UserMails(Base):
     names = relationship("UserNames", back_populates="mails", uselist=False)
     avatars = relationship("UserAvatars", back_populates="mails", uselist=False)
     accounts = relationship("UserAccounts", back_populates="mails")
+    locations = relationship("UserLocations", back_populates="mails")
     likes_user_id = relationship("UserLikes", foreign_keys=[UserLikes.user_id], back_populates="user_mail")
     likes_other_user_id = relationship("UserLikes", foreign_keys=[UserLikes.other_user_id], back_populates="other_user_mail")    
 
@@ -63,7 +65,6 @@ class UserNames(Base):
     mails = relationship("UserMails", back_populates="names")
 
 
-
 class UserAvatars(Base):
     __tablename__ = 'user_avatars'
 
@@ -74,3 +75,13 @@ class UserAvatars(Base):
     mails = relationship("UserMails", back_populates="avatars")
 
 
+class UserLocations(Base):
+    __tablename__ = 'user_locations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('user_mails.user_id'))
+    longitude = Column(Float)
+    latitude = Column(Float)
+    created_at = Column(DateTime, default=func.now())
+
+    mails = relationship("UserMails", back_populates="locations")
