@@ -34,8 +34,16 @@ class UserLikes(Base):
     other_user_id = Column(Integer, ForeignKey('user_mails.id'))
     liked_at = Column(DateTime, default=func.now())
 
-    user_mail = relationship("UserMails", foreign_keys=[user_id], back_populates="likes_user_id")
-    other_user_mail = relationship("UserMails", foreign_keys=[other_user_id], back_populates="likes_other_user_id")
+    user_mail = relationship(
+        "UserMails",
+        foreign_keys=[user_id],
+        back_populates="likes_user_id"
+    )
+    other_user_mail = relationship(
+        "UserMails",
+        foreign_keys=[other_user_id],
+        back_populates="likes_other_user_id"
+    )
 
 
 class UserMails(Base):
@@ -46,11 +54,20 @@ class UserMails(Base):
     email = Column(String, unique=True)
 
     names = relationship("UserNames", back_populates="mails", uselist=False)
-    avatars = relationship("UserAvatars", back_populates="mails", uselist=False)
+    avatars = relationship(
+        "UserAvatars", back_populates="mails", uselist=False)
     accounts = relationship("UserAccounts", back_populates="mails")
     locations = relationship("UserLocations", back_populates="mails")
-    likes_user_id = relationship("UserLikes", foreign_keys=[UserLikes.user_id], back_populates="user_mail")
-    likes_other_user_id = relationship("UserLikes", foreign_keys=[UserLikes.other_user_id], back_populates="other_user_mail")    
+    likes_user_id = relationship(
+        "UserLikes",
+        foreign_keys=[UserLikes.user_id],
+        back_populates="user_mail"
+    )
+    likes_other_user_id = relationship(
+        "UserLikes",
+        foreign_keys=[UserLikes.other_user_id],
+        back_populates="other_user_mail"
+    )
 
 
 class UserNames(Base):

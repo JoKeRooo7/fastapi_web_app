@@ -22,26 +22,28 @@ class AvatarHandler:
         await asyncio.to_thread(watermarked.save, avatar_path, "JPEG")
         user_avatar_file.file.close()
         return avatar_path
-    
-    async def _add_watermark(self, image:str) -> None:
-        watermark = await asyncio.to_thread(Image.open, settings.WATERMARK_PATH)
+
+    async def _add_watermark(self, image: str) -> None:
+        watermark = await asyncio.to_thread(
+            Image.open, settings.WATERMARK_PATH)
         # 20% от основного изображения
         max_watermark_width = image.width * 0.2
         max_watermark_height = image.height * 0.2
-        watermark.thumbnail((max_watermark_width, max_watermark_height), Image.LANCZOS)
+        watermark.thumbnail(
+            (max_watermark_width, max_watermark_height), Image.LANCZOS)
         # Отступы 10 пикселей
         x = image.width - watermark.width - 10
         y = image.height - watermark.height - 10
         watermarked = Image.new("RGBA", image.size)
         watermarked.paste(image, (0, 0))
         watermarked.paste(watermark, (x, y), watermark)
-        return  watermarked.convert("RGB")
+        return watermarked.convert("RGB")
 
     async def _validate_avatar(self, avatar):
-        if not (avatar.filename.endswith('.jpeg') or avatar.filename.endswith('.jpg') or avatar.filename.endswith('.png')):
+        if (not (avatar.filename.endswith('.jpeg') or
+                 avatar.filename.endswith('.jpg') or
+                 avatar.filename.endswith('.png'))):
             raise AvatarError("Неверный формат")
-
-            # print(f"\witch context: {avatar}\n")
         contents = await avatar.read()
         if not contents:
             raise AvatarError("Файл пуст или открыт в другом потоке")
@@ -52,10 +54,6 @@ class AvatarHandler:
         except Exception as e:
             raise AvatarError("Некорректное изображение")
 
-    
     async def delete_avatar(self, avatar_path: str) -> None:
         if os.path.exists(avatar_path):
             os.remove(avatar_path)
-        # else:
-        #     raise FileNotFoundError(f"Файл не найден: {avatar_path}")
-    
